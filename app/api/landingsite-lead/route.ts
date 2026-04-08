@@ -6,6 +6,14 @@ const supabase = createClient(
   process.env.SUPABASE_SERVICE_ROLE_KEY!
 );
 
+export async function GET() {
+  return NextResponse.json({
+    ok: true,
+    route: "landingsite-lead",
+    message: "API route werkt live",
+  });
+}
+
 export async function POST(req: Request) {
   try {
     const body = await req.json();
