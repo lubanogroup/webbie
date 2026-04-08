@@ -81,18 +81,6 @@ export async function POST(req: Request) {
       );
     }
 
-    const extraData = {
-      postal_code: postal_code || null,
-      postal_suffix: postal_suffix || null,
-      house_number: house_number || null,
-      house_suffix: house_suffix || null,
-      energy_type: energy_type || null,
-      property_type: property_type || null,
-      energy_label: energy_label || null,
-      address: address || null,
-      source: "energie-kosten.nl",
-    };
-
     const { error, data } = await supabase
       .from("Leads")
       .insert([
@@ -101,6 +89,15 @@ export async function POST(req: Request) {
           name: finalName,
           email: email || null,
           phone,
+          postal_code: postal_code || null,
+          postal_suffix: postal_suffix || null,
+          house_number: house_number || null,
+          house_suffix: house_suffix || null,
+          energy_type: energy_type || null,
+          property_type: property_type || null,
+          energy_label: energy_label || null,
+          address: address || null,
+          source: "energie-kosten.nl",
           service: "energie",
           status: "new",
           user_id: null,
@@ -118,8 +115,6 @@ export async function POST(req: Request) {
         }
       );
     }
-
-    console.log("Extra lead data van Landingsite:", extraData);
 
     return NextResponse.json(
       { success: true, data },
