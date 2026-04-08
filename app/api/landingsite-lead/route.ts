@@ -6,20 +6,35 @@ const supabase = createClient(
   process.env.SUPABASE_SERVICE_ROLE_KEY!
 );
 
-const corsHeaders = {
-  "Access-Control-Allow-Origin": "https://www.energie-kosten.nl",
-  "Access-Control-Allow-Methods": "POST, OPTIONS",
-  "Access-Control-Allow-Headers": "Content-Type",
-};
+const allowedOrigins = [
+  "https://www.energie-kosten.nl",
+  "https://energie-kosten.nl",
+];
 
-export async function OPTIONS() {
+function getCorsHeaders(origin: string | null) {
+  const allowedOrigin =
+    origin && allowedOrigins.includes(origin)
+      ? origin
+      : "https://www.energie-kosten.nl";
+
+  return {
+    "Access-Control-Allow-Origin": allowedOrigin,
+    "Access-Control-Allow-Methods": "POST, OPTIONS",
+    "Access-Control-Allow-Headers": "Content-Type",
+  };
+}
+
+export async function OPTIONS(req: Request) {
+  const origin = req.headers.get("origin");
   return new NextResponse(null, {
     status: 200,
-    headers: corsHeaders,
+    headers: getCorsHeaders(origin),
   });
 }
 
-export async function GET() {
+export async function GET(req: Request) {
+  const origin = req.headers.get("origin");
+
   return NextResponse.json(
     {
       ok: true,
@@ -27,18 +42,36 @@ export async function GET() {
       message: "API route werkt live",
     },
     {
-      headers: corsHeaders,
+      headers: getCorsHeaders(origin),
     }
   );
 }
 
 export async function POST(req: Request) {
+  const origin = req.headers.get("origin");
+  const corsHeaders = getCorsHeaders(origin);
+
   try {
     const body = await req.json();
 
-    const { full_name, email, phone } = body;
+    const {
+      name,
+      full_name,
+      email,
+      phone,
+      postal_code,
+      postal_suffix,
+      house_number,
+      house_suffix,
+      energy_type,
+      property_type,
+      energy_label,
+      address,
+    } = body;
 
-    if (!full_name || !phone) {
+    const finalName = name || full_name;
+
+    if (!finalName || !phone) {
       return NextResponse.json(
         { error: "Naam en telefoon verplicht" },
         {
@@ -48,12 +81,24 @@ export async function POST(req: Request) {
       );
     }
 
+    const extraData = {
+      postal_code: postal_code || null,
+      postal_suffix: postal_suffix || null,
+      house_number: house_number || null,
+      house_suffix: house_suffix || null,
+      energy_type: energy_type || null,
+      property_type: property_type || null,
+      energy_label: energy_label || null,
+      address: address || null,
+      source: "energie-kosten.nl",
+    };
+
     const { error, data } = await supabase
       .from("Leads")
       .insert([
         {
           created_at: new Date().toISOString(),
-          name: full_name,
+          name: finalName,
           email: email || null,
           phone,
           service: "energie",
@@ -73,6 +118,8 @@ export async function POST(req: Request) {
         }
       );
     }
+
+    console.log("Extra lead data van Landingsite:", extraData);
 
     return NextResponse.json(
       { success: true, data },
