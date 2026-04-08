@@ -6,12 +6,30 @@ const supabase = createClient(
   process.env.SUPABASE_SERVICE_ROLE_KEY!
 );
 
-export async function GET() {
-  return NextResponse.json({
-    ok: true,
-    route: "landingsite-lead",
-    message: "API route werkt live",
+const corsHeaders = {
+  "Access-Control-Allow-Origin": "https://www.energie-kosten.nl",
+  "Access-Control-Allow-Methods": "POST, OPTIONS",
+  "Access-Control-Allow-Headers": "Content-Type",
+};
+
+export async function OPTIONS() {
+  return new NextResponse(null, {
+    status: 200,
+    headers: corsHeaders,
   });
+}
+
+export async function GET() {
+  return NextResponse.json(
+    {
+      ok: true,
+      route: "landingsite-lead",
+      message: "API route werkt live",
+    },
+    {
+      headers: corsHeaders,
+    }
+  );
 }
 
 export async function POST(req: Request) {
@@ -23,7 +41,10 @@ export async function POST(req: Request) {
     if (!full_name || !phone) {
       return NextResponse.json(
         { error: "Naam en telefoon verplicht" },
-        { status: 400 }
+        {
+          status: 400,
+          headers: corsHeaders,
+        }
       );
     }
 
@@ -44,12 +65,29 @@ export async function POST(req: Request) {
 
     if (error) {
       console.error("Supabase error:", error);
-      return NextResponse.json({ error: error.message }, { status: 500 });
+      return NextResponse.json(
+        { error: error.message },
+        {
+          status: 500,
+          headers: corsHeaders,
+        }
+      );
     }
 
-    return NextResponse.json({ success: true, data });
+    return NextResponse.json(
+      { success: true, data },
+      {
+        headers: corsHeaders,
+      }
+    );
   } catch (err) {
     console.error("API error:", err);
-    return NextResponse.json({ error: "Server fout" }, { status: 500 });
+    return NextResponse.json(
+      { error: "Server fout" },
+      {
+        status: 500,
+        headers: corsHeaders,
+      }
+    );
   }
 }
