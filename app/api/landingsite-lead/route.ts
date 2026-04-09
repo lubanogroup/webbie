@@ -32,21 +32,6 @@ export async function OPTIONS(req: Request) {
   });
 }
 
-export async function GET(req: Request) {
-  const origin = req.headers.get("origin");
-
-  return NextResponse.json(
-    {
-      ok: true,
-      route: "landingsite-lead",
-      message: "API route werkt live",
-    },
-    {
-      headers: getCorsHeaders(origin),
-    }
-  );
-}
-
 export async function POST(req: Request) {
   const origin = req.headers.get("origin");
   const corsHeaders = getCorsHeaders(origin);
@@ -74,14 +59,44 @@ export async function POST(req: Request) {
     if (!finalName || !phone) {
       return NextResponse.json(
         { error: "Naam en telefoon verplicht" },
-        {
-          status: 400,
-          headers: corsHeaders,
-        }
+        { status: 400, headers: corsHeaders }
       );
     }
 
-    const { error, data } = await supabase
+    const { data: buyers, error: buyersError } = await supabase
+      .from("buyers")
+      .select("*")
+      .eq("active", true);
+
+    if (buyersError) {
+      return NextResponse.json(
+        { error: buyersError.message },
+        { status: 500, headers: corsHeaders }
+      );
+    }
+
+    if (!buyers || buyers.length === 0) {
+      return NextResponse.json(
+        { error: "Geen actieve afnemers gevonden" },
+        { status: 500, headers: corsHeaders }
+      );
+    }
+
+    const selectedBuyer = buyers.reduce((best, current) => {
+      const bestRatio =
+        best.weekly_capacity > 0
+          ? best.current_count / best.weekly_capacity
+          : Number.MAX_SAFE_INTEGER;
+
+      const currentRatio =
+        current.weekly_capacity > 0
+          ? current.current_count / current.weekly_capacity
+          : Number.MAX_SAFE_INTEGER;
+
+      return currentRatio < bestRatio ? current : best;
+    });
+
+    const { error: leadError, data: leadData } = await supabase
       .from("Leads")
       .insert([
         {
@@ -101,35 +116,46 @@ export async function POST(req: Request) {
           service: "energie",
           status: "new",
           user_id: null,
+          buyer_id: selectedBuyer.id,
+          buyer_name: selectedBuyer.name,
         },
       ])
       .select();
 
-    if (error) {
-      console.error("Supabase error:", error);
+    if (leadError) {
       return NextResponse.json(
-        { error: error.message },
-        {
-          status: 500,
-          headers: corsHeaders,
-        }
+        { error: leadError.message },
+        { status: 500, headers: corsHeaders }
+      );
+    }
+
+    const { error: updateError } = await supabase
+      .from("buyers")
+      .update({
+        current_count: selectedBuyer.current_count + 1,
+      })
+      .eq("id", selectedBuyer.id);
+
+    if (updateError) {
+      return NextResponse.json(
+        { error: updateError.message },
+        { status: 500, headers: corsHeaders }
       );
     }
 
     return NextResponse.json(
-      { success: true, data },
       {
-        headers: corsHeaders,
-      }
+        success: true,
+        assigned_to: selectedBuyer.name,
+        data: leadData,
+      },
+      { headers: corsHeaders }
     );
   } catch (err) {
     console.error("API error:", err);
     return NextResponse.json(
       { error: "Server fout" },
-      {
-        status: 500,
-        headers: corsHeaders,
-      }
+      { status: 500, headers: corsHeaders }
     );
   }
 }
