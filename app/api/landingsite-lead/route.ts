@@ -19,17 +19,55 @@ function getCorsHeaders(origin: string | null) {
 
   return {
     "Access-Control-Allow-Origin": allowedOrigin,
-    "Access-Control-Allow-Methods": "POST, OPTIONS",
+    "Access-Control-Allow-Methods": "POST, OPTIONS, GET",
     "Access-Control-Allow-Headers": "Content-Type",
   };
 }
 
+const energyTypeMap: Record<string, string> = {
+  stroom_seul: "Alleen stroom",
+  gas_seul: "Alleen gas",
+  stroom_gas: "Stroom + gas",
+  unsure: "Onzeker",
+};
+
+const propertyTypeMap: Record<string, string> = {
+  appartment: "Appartement",
+  house: "Woning",
+  office: "Kantoor",
+  other: "Anders",
+};
+
+const energyLabelMap: Record<string, string> = {
+  vattenfall: "Vattenfall",
+  essent: "Essent",
+  eneco: "Eneco",
+  nuon: "Nuon",
+  ander: "Ander",
+};
+
 export async function OPTIONS(req: Request) {
   const origin = req.headers.get("origin");
+
   return new NextResponse(null, {
     status: 200,
     headers: getCorsHeaders(origin),
   });
+}
+
+export async function GET(req: Request) {
+  const origin = req.headers.get("origin");
+
+  return NextResponse.json(
+    {
+      ok: true,
+      route: "landingsite-lead",
+      message: "API route werkt live",
+    },
+    {
+      headers: getCorsHeaders(origin),
+    }
+  );
 }
 
 export async function POST(req: Request) {
@@ -38,6 +76,7 @@ export async function POST(req: Request) {
 
   try {
     const body = await req.json();
+    console.log("BODY ONTVANGEN:", body);
 
     const {
       name,
@@ -69,6 +108,7 @@ export async function POST(req: Request) {
       .eq("active", true);
 
     if (buyersError) {
+      console.error("Buyers error:", buyersError);
       return NextResponse.json(
         { error: buyersError.message },
         { status: 500, headers: corsHeaders }
@@ -96,6 +136,15 @@ export async function POST(req: Request) {
       return currentRatio < bestRatio ? current : best;
     });
 
+    const readableEnergyType =
+      energyTypeMap[energy_type as string] || energy_type || null;
+
+    const readablePropertyType =
+      propertyTypeMap[property_type as string] || property_type || null;
+
+    const readableEnergyLabel =
+      energyLabelMap[energy_label as string] || energy_label || null;
+
     const { error: leadError, data: leadData } = await supabase
       .from("Leads")
       .insert([
@@ -108,14 +157,14 @@ export async function POST(req: Request) {
           postal_suffix: postal_suffix || null,
           house_number: house_number || null,
           house_suffix: house_suffix || null,
-          energy_type: energy_type || null,
-          property_type: property_type || null,
-          energy_label: energy_label || null,
+          energy_type: readableEnergyType,
+          property_type: readablePropertyType,
+          energy_label: readableEnergyLabel,
           address: address || null,
           source: "energie-kosten.nl",
           service: "energie",
           status: "new",
-          user_id: null,
+          user_id: selectedBuyer.user_id || null,
           buyer_id: selectedBuyer.id,
           buyer_name: selectedBuyer.name,
         },
@@ -123,6 +172,7 @@ export async function POST(req: Request) {
       .select();
 
     if (leadError) {
+      console.error("Lead insert error:", leadError);
       return NextResponse.json(
         { error: leadError.message },
         { status: 500, headers: corsHeaders }
@@ -137,6 +187,7 @@ export async function POST(req: Request) {
       .eq("id", selectedBuyer.id);
 
     if (updateError) {
+      console.error("Buyer update error:", updateError);
       return NextResponse.json(
         { error: updateError.message },
         { status: 500, headers: corsHeaders }
